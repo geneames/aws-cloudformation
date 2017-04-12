@@ -1,0 +1,353 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Version 1.00.0",
+  "Parameters": {
+    "ClusterName": {
+      "Description": "RDS cluster name. This will be used in Tags.",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "25"
+    },
+    "CloudEnvironment": {
+      "Description": "Environment of the cluster, i.e. prod, test, etc",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "16"
+    },
+    "EC2Region": {
+      "Description": "The region the EC2 instances will be created in",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "Default": "us-west-2"
+    },
+    "HostedZoneId": {
+      "Description": "The HostedZoneId of the Route53 hosted zone where the DNS record should go",
+      "Type": "String",
+      "MinLength": "1"
+    },
+    "HostedZoneName": {
+      "Description": "The HostedZoneName of the Route53 hosted zone where the DNS record should go",
+      "Type": "String",
+      "MinLength": "1"
+    },
+    "DBName": {
+      "Description": "The database name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+    },
+    "Engine": {
+      "Description": "The database engine.",
+      "Type": "String",
+      "AllowedValues": [
+        "aurora"
+      ],
+      "ConstraintDescription": "See AWS documentation for CreateDBInstance to see allowed instance type, engine, and engine version combinations. Availability may be restricted by AWS region."
+    },
+    "EngineVersion": {
+      "Description": "The version number of the database engine to use.",
+      "Type": "String"
+    },
+    "MasterUserName": {
+      "NoEcho": "true",
+      "Description": "The database admin account user name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+    },
+    "MasterUserPassword": {
+      "NoEcho": "true",
+      "Description": "The database admin account password",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "41",
+      "AllowedPattern": "[a-zA-Z0-9]+",
+      "ConstraintDescription": "must contain only alphanumeric characters."
+    },
+    "DBInstanceClass": {
+      "Description": "The database instance type.",
+      "Type": "String",
+      "AllowedValues": [
+        "db.t2.medium",
+        "db.t2.large",
+        "db.r3.large",
+        "db.r3.xlarge"
+      ],
+      "ConstraintDescription": "Must be available for DB Engine and VPC configuration."
+    },
+    "AvailabilityZones": {
+      "Description": "Availability zones instances are allowed to be in.",
+      "Type": "CommaDelimitedList"
+    },
+    "VpcSecurityGroupIds": {
+      "Description": "VPC security groups.",
+      "Type": "CommaDelimitedList"
+    },
+    "SubnetIds": {
+      "Description": "List of subnet Ids.",
+      "Type": "CommaDelimitedList"
+    },
+    "DNSName": {
+      "Description": "First group name that is used to create DNS CNAME to the cluster endpoint.",
+      "Type": "String",
+      "MinLength": 3,
+      "MaxLength": 25,
+      "AllowedPattern": "^((?!-))(xn--)?[a-z0-9][a-z0-9-_]{0,23}[a-z0-9]{0,1}",
+      "ConstraintDescription": "See pattern and length restrictions for what is an allowable first group name."
+    }
+  },
+  "Outputs": {
+    "ClusterEndpointAddress": {
+      "Description": "The RDS Cluster endpoint address name.",
+      "Value": {
+        "Fn::GetAtt": [
+          "RDSCluster",
+          "Endpoint.Address"
+        ]
+      }
+    }
+  },
+  "Resources": {
+    "RDSCluster": {
+      "Type": "AWS::RDS::DBCluster",
+      "Properties": {
+        "AvailabilityZones": {
+          "Ref": "AvailabilityZones"
+        },
+        "DBSubnetGroupName": {
+          "Ref": "DBSubnetGroup"
+        },
+        "DatabaseName": {
+          "Ref": "DBName"
+        },
+        "MasterUsername": {
+          "Ref": "MasterUserName"
+        },
+        "MasterUserPassword": {
+          "Ref": "MasterUserPassword"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  "st-",
+                  {
+                    "Ref": "ClusterName"
+                  },
+                  "-cluster"
+                ]
+              ]
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "CloudEnvironment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": "st-admin"
+          }
+        ],
+        "VpcSecurityGroupIds": {
+          "Ref": "VpcSecurityGroupIds"
+        },
+        "Engine": {
+          "Ref": "Engine"
+        },
+        "PreferredMaintenanceWindow": "Sun:08:00-Sun:12:00"
+      }
+    },
+    "DBInstance1": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBClusterIdentifier": {
+          "Ref": "RDSCluster"
+        },
+        "DBInstanceClass": {
+          "Ref": "DBInstanceClass"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  "st-",
+                  {
+                    "Ref": "ClusterName"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "CloudEnvironment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": "st-admin"
+          }
+        ],
+        "Engine": {
+          "Ref": "Engine"
+        },
+        "AutoMinorVersionUpgrade": "true"
+      }
+    },
+    "DBInstance2": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBClusterIdentifier": {
+          "Ref": "RDSCluster"
+        },
+        "DBInstanceClass": {
+          "Ref": "DBInstanceClass"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  "st-",
+                  {
+                    "Ref": "ClusterName"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "CloudEnvironment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": "st-admin"
+          }
+        ],
+        "Engine": {
+          "Ref": "Engine"
+        },
+        "AutoMinorVersionUpgrade": "true"
+      }
+    },
+    "DBInstance3": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBClusterIdentifier": {
+          "Ref": "RDSCluster"
+        },
+        "DBInstanceClass": {
+          "Ref": "DBInstanceClass"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  "st-",
+                  {
+                    "Ref": "ClusterName"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "CloudEnvironment"
+            }
+          },
+          {
+            "Key": "Owner",
+            "Value": "st-admin"
+          }
+        ],
+        "Engine": {
+          "Ref": "Engine"
+        },
+        "AutoMinorVersionUpgrade": "true"
+      }
+    },
+    "DBSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "The subnets the instances will be available on",
+        "SubnetIds": {
+          "Ref": "SubnetIds"
+        }
+      }
+    },
+    "RDSClusterDNSRecord": {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+        "HostedZoneName": {
+          "Fn::Join": [
+            "",
+            [
+              {
+                "Ref": "HostedZoneName"
+              },
+              "."
+            ]
+          ]
+        },
+        "Comment": "Simple DNS name for RDS cluster.",
+        "Name": {
+          "Fn::Join": [
+            ".",
+            [
+              {
+                "Fn::Join": [
+                  "-",
+                  [
+                    {
+                      "Ref": "DNSName"
+                    },
+                    {
+                      "Ref": "EC2Region"
+                    }
+                  ]
+                ]
+              },
+              {
+                "Ref": "HostedZoneName"
+              }
+            ]
+          ]
+        },
+        "Type": "CNAME",
+        "TTL": "300",
+        "ResourceRecords": [
+          {
+            "Fn::GetAtt": [
+              "RDSCluster",
+              "Endpoint.Address"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
